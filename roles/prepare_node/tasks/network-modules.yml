@@ -1,0 +1,14 @@
+- name: Load modules br_netfilter
+  community.general.modprobe:
+    name: br_netfilter
+
+- name: Load modules overlay
+  community.general.modprobe:
+    name: overlay
+
+- name: Load module permanet
+  ansible.builtin.copy:
+    src: kubernetes-mods.conf
+    dest: /etc/modules-load.d/modules-kubernetes.conf
+    owner: root
+    mode: u=rw,g=r,o=r

@@ -1,0 +1,35 @@
+---
+- name: Abort if an even number of nodes
+  hosts: kube_cluster
+  gather_facts: false
+  tasks:
+  - name: Abort when masters count is even
+    ansible.builtin.fail:
+      msg: "Abort. An even number of nodes"
+    when: (groups['kube_masters'] | length) is divisibleby(2)
+
+- name: Prepare Hosts
+  hosts: kube_cluster
+  roles:
+  - prepare_node
+
+- name: Init Cluster and First Controle Plane
+  hosts: kube_cluster
+  roles:
+  - role: first_master
+
+- name: Join other Control Planes
+  hosts: kube_masters
+  roles:
+  - role: other_masters
+
+- name: Join worker nodes
+  hosts: kube_cluster
+  roles:
+  - workers
+
+# change coredns ip to nodelocalcache dns
+- name: Post cluster-init node setup
+  hosts: kube_cluster
+  roles:
+  - post_init_node_setup

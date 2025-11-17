@@ -1,0 +1,25 @@
+- name: Set hostname (FQDN)
+  ansible.builtin.hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Write FQDN to /etc/hostname
+  ansible.builtin.copy:
+    content: "{{ inventory_hostname }}\n"
+    dest: /etc/hostname
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Ensure FQDN and short name present in /etc/hosts
+  ansible.builtin.lineinfile:
+    dest: /etc/hosts
+    regexp: '^127\.0\.0\.1'
+    line: "127.0.0.1 {{ inventory_hostname }} {{ inventory_hostname | regex_replace('\\..*$', '') }}"
+    state: present
+
+# for expanded view for root [root@w01.dev ~]# for example
+- name: Add PS1
+  ansible.builtin.lineinfile:
+    path: /root/.bashrc
+    state: present
+    line: "export PS1='[\\u@\\H \\W]\\$ '"

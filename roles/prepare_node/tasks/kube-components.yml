@@ -1,0 +1,59 @@
+- name: Remove current k8s packages
+  ansible.builtin.apt:
+    pkg:
+    - kubectl
+    - kubelet
+    - kubeadm
+    state: absent
+
+- name: Find all apt repositories for k8s
+  ansible.builtin.find:
+    paths: /etc/apt/sources.list.d
+    patterns: '*kube*'
+    file_type: file
+  register: kube_repos
+
+- name: Remove all k8s apt repos
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ kube_repos.files }}"
+
+- name: Remove possible main-list k8s repo
+  ansible.builtin.lineinfile:
+    path: /etc/apt/sources.list
+    regexp: '.*kubernetes.*'
+    state: absent
+
+- name: Delete k8s repo key
+  ansible.builtin.file:
+    path: /etc/apt/trusted.gpg.d/k8s.gpg
+    state: absent
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+
+- name: K8s repository for Ubuntu|Debian [Key]
+  when: ansible_facts['os_family'] == "Debian"
+  ansible.builtin.apt_key:
+#    url: "https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/Release.key"
+    url: "https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/Release.key"
+    state: present
+    keyring: /etc/apt/trusted.gpg.d/k8s.gpg
+
+- name: K8s repository for Ubuntu|Debian
+  when: ansible_facts['os_family'] == "Debian"
+  ansible.builtin.apt_repository:
+#    repo: "deb [signed-by=/etc/apt/trusted.gpg.d/k8s.gpg] https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/ /"
+    repo: "deb [signed-by=/etc/apt/trusted.gpg.d/k8s.gpg] https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/ /"
+    state: present
+    filename: kubernetes
+
+- name: Install k8s packages
+  ansible.builtin.apt:
+    pkg:
+    - kubectl
+    - kubelet
+    - kubeadm
+    state: present

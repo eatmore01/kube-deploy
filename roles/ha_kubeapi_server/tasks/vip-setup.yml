@@ -1,0 +1,24 @@
+---
+- name: Copy keepalived.conf to master
+  ansible.builtin.template:
+    src: keepalived.j2
+    dest: /etc/keepalived/keepalived.conf
+    mode: '0600'
+  notify: Restart keepalived
+
+- name: Copy haproxy haproxy.cfg
+  ansible.builtin.template:
+    src: haproxy.j2
+    dest: /etc/haproxy/haproxy.cfg
+    mode: '0600'
+  register: haproxy_conf
+  notify: Restart haproxy
+
+- name: Enable keepalived and haproxy
+  ansible.builtin.service:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  with_items:
+  - keepalived
+  - haproxy

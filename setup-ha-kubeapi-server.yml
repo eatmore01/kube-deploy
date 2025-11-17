@@ -1,0 +1,18 @@
+---
+# - name: Abort if an even number of nodes
+#   hosts: kube_cluster
+#   gather_facts: false
+#   tasks:
+#   - name: Abort when masters count is even
+#     ansible.builtin.fail:
+#       msg: "Abort. An even number of nodes"
+#     when: (groups['kube_masters'] | length) is divisibleby(2)
+
+
+- name: Setup HA kubeapi-server
+  hosts: kube_cluster
+  tasks:
+    - name: run role
+      ansible.builtin.include_role:
+        name: ha_kubeapi_server
+      when: cluster_vip_setup_enable is true

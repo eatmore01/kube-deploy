@@ -1,0 +1,5 @@
+---
+- name: Upgrade cluster
+  hosts: kube_cluster
+  roles:
+  - upgrade_cluster

@@ -1,0 +1,16 @@
+---
+- name: Set sysctl
+  ansible.posix.sysctl:
+    name: "net.ipv4.ip_nonlocal_bind"
+    value: "1"
+    sysctl_set: true
+    state: present
+    ignoreerrors: true
+
+- name: Install packages Ubuntu
+  when: ansible_os_family == "Debian"
+  ansible.builtin.apt:
+    name:
+    - keepalived
+    - haproxy
+    state: present

@@ -1,0 +1,5 @@
+---
+- name: Reset cluster
+  hosts: kube_cluster
+  roles:
+  - reset_cluster

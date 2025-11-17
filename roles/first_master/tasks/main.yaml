@@ -1,0 +1,55 @@
+---
+# 1-st control node
+- name: Check if kubeadm has already run
+  ansible.builtin.stat:
+    path: "/etc/kubernetes/pki/ca.key"
+  when: inventory_hostname == groups['kube_masters'][0]
+  register: kubeadm_ca
+
+- name: End play
+  ansible.builtin.meta: end_play
+  when: kubeadm_ca.stat.exists
+
+- name: Create /etc/kubernetes directory
+  ansible.builtin.file:
+    path: /etc/kubernetes
+    state: directory
+    mode: '0700'
+
+- name: Copy kubeadm-config.yaml
+  ansible.builtin.template:
+    src: kubeadm-config.j2
+    dest: /etc/kubernetes/kubeadm-config.yaml
+    mode: '0600'
+
+- name: Load k8s containers
+  when: inventory_hostname == groups['kube_masters'][0]
+  ansible.builtin.command: kubeadm config images pull
+
+- name: Init master control node
+  when: enable_ebpf == false and inventory_hostname == groups['kube_masters'][0]
+  ansible.builtin.command: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
+  register: kubeadm_init
+
+- name: Init master control node with eBPF
+  when: enable_ebpf == true and inventory_hostname == groups['kube_masters'][0]
+  shell: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml --skip-phases=addon/kube-proxy
+  register: kubeadm_init
+
+- name: Install Utils
+  when: inventory_hostname == groups['kube_masters'][0]
+  include_tasks: utils.yaml
+
+- name: CNI
+  when: inventory_hostname == groups['kube_masters'][0]
+  ansible.builtin.include_tasks: cni.yml
+
+- name: Setup DNS
+  when: inventory_hostname == groups['kube_masters'][0]
+  ansible.builtin.include_tasks: dns.yaml
+
+- name: Kubelet enable
+  ansible.builtin.service:
+    name: kubelet
+    state: started
+    enabled: true

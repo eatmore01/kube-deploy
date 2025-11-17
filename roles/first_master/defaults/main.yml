@@ -1,0 +1,13 @@
+kubelet_max_pods: 110 # default recomended values pods per node
+
+kubelet_static_pod_path: /etc/kubernetes/manifests
+
+kubelet_image_gc_high_threshold: 90
+kubelet_image_gc_low_threshold: 80
+
+system_reserved: {}
+
+evictionHard: {}
+eviction_soft: {}
+eviction_soft_grace_period: {}
+

@@ -1,0 +1,150 @@
+- name: Containerd | Remove current container runtime packages
+  apt:
+    pkg:
+    - containerd.io
+    state: absent
+    purge: false
+    autoremove: true
+
+- name: Containerd | Remove old Docker deb822 repository (if present)
+  deb822_repository:
+    name: "{{ docker_repo_name }}"
+    state: absent
+  register: docker_repo_removed
+
+- name: Containerd | Update apt cache after repo removal
+  apt:
+    update_cache: true
+  when: docker_repo_removed is changed
+
+- name: Containerd | Add Docker repository.
+  deb822_repository:
+    name: docker
+    types: deb
+    uris: "{{ docker_apt_repository }}"
+    state: present
+    suites: "{{ ansible_distribution_release }}"
+    components: "{{ docker_apt_release_channel }}"
+    signed_by: "{{ docker_apt_gpg_key }}"
+  register: docker_repository
+
+- name: Containerd | Update Apt cache if repositories have changed
+  apt:
+    update_cache: true
+  when: docker_repository is changed
+
+- name: Containerd | Install apt package
+  ansible.builtin.apt:
+    name: containerd.io
+    state: present
+
+- name: Containerd | Ensure containerd is started and enabled
+  systemd_service:
+    name: containerd
+    daemon_reload: true
+    enabled: true
+    state: started
+
+- name: Containerd | Ensure containerd config directory exists.
+  file:
+    path: /etc/containerd
+    state: directory
+  register: containerd_dir
+
+- name: Containerd |Get defaults from containerd.
+  command: containerd config default
+  changed_when: false
+  register: containerd_config_default
+  when: containerd_config_default_write
+
+- name: Containerd | Prepare containerd/config.toml from default config
+  copy:
+    dest: /tmp/containerd_config.toml
+    content: "{{ containerd_config_default.stdout }}"
+  when: containerd_config_default_write
+  changed_when: false
+
+- name: Containerd | Set Cgroup driver to systemd
+  lineinfile:
+    insertafter: '.*\[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options\]$'
+    line: '            SystemdCgroup = true'
+    state: present
+    path: /tmp/containerd_config.toml
+  when: containerd_config_default_write and containerd_config_cgroup_driver_systemd
+  changed_when: false
+
+- name: Containerd | Make sure  SystemdCgroup = false is not set
+  lineinfile:
+    path: /tmp/containerd_config.toml
+    state: absent
+    line: '            SystemdCgroup = false'
+  when: containerd_config_default_write and containerd_config_cgroup_driver_systemd
+  changed_when: false
+
+- name: Containerd | Copy config.toml to /etc/containerd
+  copy:
+    remote_src: true
+    src: /tmp/containerd_config.toml
+    dest: /etc/containerd/config.toml
+  when: containerd_config_default_write
+
+- name: Containerd | Cleanup temporary file
+  file:
+    path: /tmp/containerd_config.toml
+    state: absent
+  changed_when: false
+
+
+- name: Enable dockerhub mirror on containerd | mkdir certs.d
+  become: true
+  ansible.builtin.file:
+    path: /etc/containerd/certs.d
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable dockerhub mirror on containerd | mkdir docker.io
+  become: true
+  when: dockerhub_mirror_enable | bool
+  ansible.builtin.file:
+    path: /etc/containerd/certs.d/docker.io
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable dockerhub mirror on containerd | file hosts.toml for docker.io
+  become: true
+  when: dockerhub_mirror_enable | bool
+  ansible.builtin.template:
+    src: hosts-docker.io.j2
+    dest: /etc/containerd/certs.d/docker.io/hosts.toml
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+
+- name: Enable dockerhub mirror on containerd | mkdir registry.k8s.io
+  become: true
+  when: dockerhub_mirror_enable | bool
+  ansible.builtin.file:
+    path: /etc/containerd/certs.d/registry.k8s.io
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Enable dockerhub mirror on containerd | file hosts.toml for registry.k8s.io
+  become: true
+  when: dockerhub_mirror_enable | bool
+  ansible.builtin.template:
+    src: hosts-registry.k8s.io.j2
+    dest: /etc/containerd/certs.d/registry.k8s.io/hosts.toml
+    owner: root
+    group: root
+    mode: u=rw,g=r,o=r
+
+- name: Containerd | restart containerd
+  service:
+    name: containerd
+    state: restarted

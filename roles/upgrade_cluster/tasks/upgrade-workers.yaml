@@ -1,0 +1,35 @@
+- name: Get current version
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+  shell:
+    cmd: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
+  register: version_current
+
+- name: Version check. 
+  when: version_current_1st_master.stdout is regex(".*" ~ kube_version)
+  block:
+    - name: Nothing todo
+      debug: 
+        msg: "Current cluster version {{ version_current_1st_master.stdout }} equal a new version in variables {{ kube_version }}"
+
+    - name: Stop upgrade 1-st control
+      meta: end_host
+
+- name: Drain worker node
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+  shell:
+    cmd: kubectl drain {{ ansible_fqdn }} --ignore-daemonsets --delete-emptydir-data
+
+- name: Upgrade worker node
+  shell:
+    cmd: "kubeadm upgrade node"
+
+- name: Restart kubelet
+  systemd:
+    state: restarted
+    daemon_reload: yes
+    name: kubelet
+
+- name: Uncordon worker node
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+  shell:
+    cmd: "kubectl uncordon {{ ansible_fqdn }}"

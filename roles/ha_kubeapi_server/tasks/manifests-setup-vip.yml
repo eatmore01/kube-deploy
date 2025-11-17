@@ -1,0 +1,119 @@
+- name: Download yq binary from GitHub
+  ansible.builtin.get_url:
+    url: https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+    dest: /usr/bin/yq
+    mode: '0755'
+    owner: root
+    group: root
+
+- name: Copy add certSans VIP ip script
+  ansible.builtin.copy:
+    dest: /root/add_certsan.sh
+    owner: root
+    mode: "0700"
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      
+      NEW_IP="${1:-}"
+      INPUT_FILE="${2:-kubeadm-config-copy.yaml}"
+      
+      if [[ -z "${NEW_IP}" ]]; then
+          echo "Error: IP address required as first argument" >&2
+          echo "Usage: $0 <new-ip-address>" >&2
+          exit 1
+      fi
+      
+      if ! [[ "${NEW_IP}" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Error: Invalid IP address format" >&2
+          exit 1
+      fi
+      
+      if ! command -v yq &> /dev/null; then
+          echo "Error: yq is not installed. Install with: wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 -O /usr/bin/yq && chmod +x /usr/bin/yq" >&2
+          exit 1
+      fi
+      
+      cp "${INPUT_FILE}" "${INPUT_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+      
+      yq eval '(.apiServer.certSANs) += ["'"${NEW_IP}"'"]' -i "${INPUT_FILE}"
+      
+      echo "✓ Successfully added ${NEW_IP} to certSANs in ${INPUT_FILE}"
+      echo "✓ Backup created: ${INPUT_FILE}.backup.$(date +%Y%m%d_%H%M%S)"
+
+- name: Add VIP ip to CertSans
+  ansible.builtin.shell: /root/add_certsan.sh {{ cluster_vip }} {{ kubeadm_config_path }}
+  register: certsan_result
+
+- name: Display certSAN addition result
+  ansible.builtin.debug:
+    var: certsan_result.stdout_lines
+
+- name: Backup PKI directory
+  ansible.builtin.copy:
+    src: /etc/kubernetes/pki
+    dest: /etc/kubernetes/pki.backup.{{ ansible_date_time.epoch }}
+    remote_src: true
+    mode: preserve
+  register: pki_backup
+
+- name: Backup existing API server certificates to temp
+  ansible.builtin.shell: |
+    mkdir -p ~/crt-backups
+    cp /etc/kubernetes/pki/apiserver.{crt,key} ~/crt-backups/
+  args:
+    executable: /bin/bash
+
+- name: Remove old API server certificates
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/kubernetes/pki/apiserver.crt
+    - /etc/kubernetes/pki/apiserver.key
+
+- name: Regenerate API server certificate
+  ansible.builtin.shell: |
+    kubeadm init phase certs apiserver --config {{ kubeadm_config_path }}
+  register: cert_regen
+  failed_when: cert_regen.rc != 0
+
+- name: Verify certificate was created
+  ansible.builtin.stat:
+    path: /etc/kubernetes/pki/apiserver.crt
+  register: new_cert
+  failed_when: not new_cert.stat.exists
+
+- name: Verify VIP in certificate
+  ansible.builtin.shell: |
+    openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout | grep "{{ cluster_vip }}"
+  register: vip_check
+  failed_when: vip_check.rc != 0
+  changed_when: false
+
+- name: Restart kube-apiserver
+  ansible.builtin.shell: |
+    kubectl delete pod -n kube-system -l component=kube-apiserver
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: restart_result
+
+- name: Wait for kube-apiserver to be ready
+  ansible.builtin.shell: |
+    timeout 120 sh -c 'until kubectl get --raw /healthz &>/dev/null; do sleep 2; done'
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  register: health_check
+  retries: 3
+  delay: 5
+  until: health_check.rc == 0
+
+- name: Clean up temporary backups on success
+  ansible.builtin.file:
+    path: ~/crt-backups
+    state: absent
+  when: health_check.rc == 0
+
+- name: Display success message
+  ansible.builtin.debug:
+    msg: "✓ Node {{ inventory_hostname }} updated successfully"

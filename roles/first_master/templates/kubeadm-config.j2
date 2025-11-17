@@ -1,0 +1,86 @@
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: {{ hostvars[groups['kube_masters'][0]].ansible_facts.default_ipv4.address }}
+  bindPort: 6443
+nodeRegistration:
+  name: "{{ ansible_facts.nodename }}"
+{% if control_plane_taints_enable %}
+  taints:
+  - effect: NoSchedule
+    key: node-role.kubernetes.io/control-plane
+{% endif %}
+  criSocket: "{{ cri_socket }}"
+  imagePullSerial: true
+  imagePullPolicy: IfNotPresent
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+certificatesDir: /etc/kubernetes/pki
+clusterName: "{{ cluster_domain }}"
+imageRepository: "{{ image_repository }}"
+controlPlaneEndpoint: "{{ hostvars[groups['kube_masters'][0]].ansible_facts.default_ipv4.address }}:6443"
+networking:
+  dnsDomain: "{{ cluster_domain }}"
+  podSubnet: "{{ pod_network_cidr }}"
+  serviceSubnet: "{{ service_cidr }}"
+apiServer:
+  extraArgs:
+  - name: etcd-compaction-interval
+    value: "5m0s"
+  - name: default-not-ready-toleration-seconds
+    value: "300"
+  - name: default-unreachable-toleration-seconds
+    value: "300"
+  - name: anonymous-auth
+    value: "True"
+  certSANs:
+  - "kubernetes"
+  - "kubernetes.default"
+  - "kubernetes.default.svc"
+  - "kubernetes.default.svc.{{ cluster_domain }}"
+  - "10.233.0.1"
+  - "localhost"
+  - "127.0.0.1"
+  - "::1"
+  - "{{ ansible_facts.nodename }}"
+  - "{{ ansible_default_ipv4.address | default(ansible_all_ipv4_addresses) }}"
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+clusterCIDR: "{{ pod_network_cidr }}" 
+bindAddress: "0.0.0.0"
+ipvs:
+  strictARP: true
+mode: ipvs
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+staticPodPath: "{{ kubelet_static_pod_path }}"
+maxPods: {{ kubelet_max_pods }}
+clusterDomain: "{{ cluster_domain }}"
+clusterDNS:
+  - 10.233.0.10
+{% if system_reserved is defined and system_reserved %}
+systemReserved:
+  {{ system_reserved | to_nice_yaml(indent=2) | indent(2) }}
+{% endif %}
+{% if eviction_hard is defined and eviction_hard %}
+evictionHard:
+  {{ eviction_hard | to_nice_yaml(indent=2) | indent(2) }}
+{% endif %}
+{% if eviction_soft is defined and eviction_soft %}
+evictionSoft:
+  {{ eviction_soft | to_nice_yaml(indent=2) | indent(2) }}
+{% endif %}
+{% if eviction_soft_grace_period is defined and eviction_soft_grace_period %}
+evictionSoftGracePeriod:
+  {{ eviction_soft_grace_period | to_nice_yaml(indent=2) | indent(2) }}
+{% endif %}
+{% if kubelet_image_gc_high_threshold is defined %}
+imageGCHighThresholdPercent: {{ kubelet_image_gc_high_threshold }}
+{% endif %}
+{% if kubelet_image_gc_low_threshold is defined %}
+imageGCLowThresholdPercent: {{ kubelet_image_gc_low_threshold }}
+{% endif %}

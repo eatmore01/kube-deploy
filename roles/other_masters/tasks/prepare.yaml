@@ -1,0 +1,37 @@
+---
+- name: Get API endpoint for JOIN
+  shell: "KUBECONFIG=/etc/kubernetes/admin.conf kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}' | awk -F:// '{print $2}'"
+  register: api_server
+  run_once: true
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+
+- name: Generate join token
+  ansible.builtin.command: kubeadm token create
+  register: join_token
+  run_once: true
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+
+- name: Get discovery-token-ca-cert-hash
+  ansible.builtin.shell: "openssl x509 -in /etc/kubernetes/pki/ca.crt -noout -pubkey | openssl rsa -pubin -outform DER 2>/dev/null | sha256sum | awk '{print $1}'"
+  register: discovery_token_ca_cert_hash
+  run_once: true
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+
+- name: Upload certs
+  ansible.builtin.shell: |
+    kubeadm init phase upload-certs --upload-certs | tail -1
+  register: certificate_key
+  run_once: true
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+
+
+# save needed facts for join to first master
+# and sooner read it from first master node 
+- name: Save join info as facts on master
+  ansible.builtin.set_fact:
+    join_path: "{{ api_server.stdout }}"
+    join_token: "{{ join_token.stdout }}"
+    discovery_token_ca_cert_hash: "{{ discovery_token_ca_cert_hash.stdout }}"
+    certificate_key: "{{ certificate_key.stdout }}"
+  run_once: true
+  delegate_to: "{{ groups['kube_masters'][0] }}"

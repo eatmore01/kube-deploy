@@ -1,0 +1,31 @@
+---
+- name: Read kubelet config YAML
+  ansible.builtin.slurp:
+    src: "{{ kubelet_config_path }}"
+  register: kubelet_cfg_raw
+
+- name: Build updated kubelet config dict
+  ansible.builtin.set_fact:
+    kubelet_cfg_dict: >-
+      {{
+        (kubelet_cfg_raw.content | b64decode | from_yaml)
+          | combine(
+              {
+                'clusterDNS':
+                  (
+                    [ nodelocaldns_local_ip ]
+                  )
+              },
+              recursive=True
+            )
+      }}
+
+- name: Write updated kubelet config if changed
+  ansible.builtin.copy:
+    content: "{{ kubelet_cfg_dict | to_nice_yaml(indent=2) | indent(2) }}"
+    dest: "{{ kubelet_config_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+    backup: true
+  notify: Restart kubelet

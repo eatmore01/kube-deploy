@@ -1,0 +1,4 @@
+venv/
+.vscode/
+TODO.md
+.DS_Store

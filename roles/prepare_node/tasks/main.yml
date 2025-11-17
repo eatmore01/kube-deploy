@@ -1,0 +1,27 @@
+- name: Set hostname
+  ansible.builtin.include_tasks: hostname.yml
+
+- name: Install OS packages
+  ansible.builtin.include_tasks: os-packages.yml
+
+- name: Install NTP server
+  ansible.builtin.include_tasks: ntp.yml
+
+- name: Disable swap
+  ansible.builtin.include_tasks: swap-setup.yml
+
+- name: Setup crictl
+  ansible.builtin.include_tasks: crictl.yml
+
+- name: Network modules setup
+  ansible.builtin.include_tasks: network-modules.yml
+
+- name: Sysctl setup
+  ansible.builtin.include_tasks: sysctl.yml
+
+- name: Install containerd
+  when: cri == "containerd"
+  ansible.builtin.include_tasks: containerd.yml
+
+- name: Install k8s components
+  ansible.builtin.include_tasks: kube-components.yml

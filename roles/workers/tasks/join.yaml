@@ -1,0 +1,31 @@
+---
+- name: Check if kubelet.conf exists
+  ansible.builtin.stat:
+    path: "/etc/kubernetes/kubelet.conf"
+  register: kubelet_conf
+
+- name: Show join debug print
+  when: debug_enable is true
+  ansible.builtin.debug:
+    msg:  "kubeadm join {{  hostvars[groups['kube_masters'][0]].join_path }} --token {{  hostvars[groups['kube_masters'][0]].join_token }} --discovery-token-ca-cert-hash sha256:{{  hostvars[groups['kube_masters'][0]].discovery_token_ca_cert_hash }}"
+
+- name: Join control nodes
+  when: not kubelet_conf.stat.exists
+  ansible.builtin.shell:
+    cmd: "kubeadm join {{  hostvars[groups['kube_masters'][0]].join_path }} --token {{  hostvars[groups['kube_masters'][0]].join_token }} --discovery-token-ca-cert-hash sha256:{{  hostvars[groups['kube_masters'][0]].discovery_token_ca_cert_hash }}"
+
+- name: Kubelet enable
+  ansible.builtin.service:
+    name: kubelet
+    state: started
+    enabled: true
+
+- name: Show join debug print
+  when: debug_enable is true
+  ansible.builtin.debug:
+    msg:  "kubectl label nodes {{ inventory_hostname }} node-role.kubernetes.io/worker="
+
+- name: Add label worker node
+  ansible.builtin.shell:
+    cmd: "kubectl label nodes {{ inventory_hostname }} node-role.kubernetes.io/worker="
+  delegate_to: "{{ groups['kube_masters'][0] }}"

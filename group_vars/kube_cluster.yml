@@ -1,0 +1,90 @@
+# small debug mode
+debug_enable: true
+
+# kube_cluster group variables ( main cluster group )
+ansible_python_interpreter: /usr/bin/python3
+
+# Kubernetes parameters
+image_repository: registry.k8s.io
+
+# Enable dockerhub mirror
+dockerhub_mirror_enable: true
+dockerhub_mirror_urls:
+- "https://mirror.gcr.io/v2"
+- "https://daocloud.io/v2"
+
+###### KUBE params
+# https://kubernetes.io/releases/
+# 1.34 - last release at 23.10.2025
+# 1.33 - 1.34, etc.
+kube_version: 1.34
+
+cluster_domain: cluster.local
+service_cidr: "10.233.0.0/18"
+pod_network_cidr: "10.233.64.0/18"
+control_plane_taints_enable: true
+######
+###### CRI setup
+cri: containerd
+cri_socket: unix:///run/containerd/containerd.sock
+# crio
+# cri_socket: unix:///var/run/crio/crio.sock
+######
+###### CNI 
+# - calico
+cni: calico
+######
+###### calico
+# One of: IPIP, VXLAN, IPIPCrossSubnet, VXLANCrossSubnet, None
+# Work only install without eBPF
+encapsulation: "IPIPCrossSubnet" #  IPIPCrossSubnet = user ip in ip only between differente subnets
+# https://github.com/projectcalico/calico
+tigera_operator_version: v3.28.1
+enable_ebpf: false
+######
+###### Kubelet configuration
+# https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
+## Reserve resources for OS system daemons.
+# system_reserved: {} # for disable
+system_reserved:
+  cpu: 500m
+  memory: 512Mi
+  ephemeral-storage: 5Gi
+## Eviction Thresholds to avoid system OOMs
+# https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/#eviction-thresholds
+eviction_hard:
+  nodefs.available: "10%"
+  imagefs.available: "15%"
+eviction_soft:
+  nodefs.available: "20%"
+  imagefs.available: "25%"
+eviction_soft_grace_period:
+  nodefs.available: "2m"
+  imagefs.available: "3m"
+#############
+# It is advisable not to change.
+kubectl_config: /etc/kubernetes/admin.conf
+kubeadmin_config: /etc/kubernetes/kubeadm.conf
+
+###### nodelocaldns
+# https://github.com/kubernetes/dns
+nodelocaldns_image_name: "registry.k8s.io/dns/k8s-dns-node-cache"
+nodelocaldns_image_tag: "1.26.5"
+nodelocaldns_image: "{{ nodelocaldns_image_name }}:{{ nodelocaldns_image_tag }}"
+## Change only if this IP is already taken.
+nodelocaldns_local_ip: 169.254.25.10
+######
+###### VIP kubeapi-server params | setup-ha-kubeapi-server.yaml
+cluster_vip_setup_enable: false
+cluster_vip: 10.0.11.100
+cluster_vip_port: 7443
+# immediately change kube manifest to vip
+change_kube_manifests: true
+######
+###### CONTAINERD
+containerd_version: latest # or 2.1.3 for kuber version 1.34
+# Write a default containerd config.toml file.
+containerd_config_default_write: true
+# Set systemd as cgroup driver in config.toml
+# Only use with containerd_config_default_write: true
+containerd_config_cgroup_driver_systemd: true

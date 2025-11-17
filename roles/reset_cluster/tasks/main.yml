@@ -1,0 +1,64 @@
+---
+- name: Reset k8s cluster
+  ansible.builtin.command: kubeadm reset -f
+  ignore_errors: true
+
+- name: Disable keepalived and haproxy services
+  when:
+  - cluster_vip_setup_enable is true
+  - inventory_hostname in groups['kube_masters']
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  with_items:
+  - keepalived
+  - haproxy
+  ignore_errors: true
+
+- name: Disabled containerd service
+  when: cri == "containerd"
+  ansible.builtin.service:
+    name: containerd
+    state: stopped
+    enabled: false
+
+- name: Delete config.toml file
+  when: cri == "containerd"
+  ansible.builtin.file:
+    path: /etc/containerd/config.toml
+    state: absent
+
+- name: Copy clear fw script
+  ansible.builtin.copy:
+    dest: /root/clear_fw.sh
+    owner: root
+    mode: "0700"
+    content: |
+      #!/bin/bash
+
+      iptables -F
+      iptables -t nat -F
+      iptables -t mangle -F
+      iptables -t raw -F
+
+      iptables -X
+      iptables -t nat -X
+      iptables -t mangle -X
+      iptables -t raw -X
+
+      ipvsadm --clear
+
+- name: Clear firewall
+  ansible.builtin.shell: /root/clear_fw.sh
+  ignore_errors: true
+
+- name: Delete k8s files
+  file:
+    path: /etc/kubernetes
+    state: absent
+
+- name: Delete k8s kube config
+  file:
+    path: /root/.kube
+    state: absent

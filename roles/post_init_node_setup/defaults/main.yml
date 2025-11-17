@@ -1,0 +1,1 @@
+kubelet_config_path: /var/lib/kubelet/config.yaml

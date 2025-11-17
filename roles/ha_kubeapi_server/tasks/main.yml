@@ -1,0 +1,10 @@
+---
+- name: Prepare Host
+  ansible.builtin.include_tasks: host.yml
+
+- name: Setup VIP ip with haproxy and keepalived
+  ansible.builtin.include_tasks: vip-setup.yml
+
+- name: Manifests editing
+  when: change_kube_manifests is true
+  ansible.builtin.include_tasks: manifests-setup-vip

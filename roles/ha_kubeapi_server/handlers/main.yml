@@ -1,0 +1,27 @@
+---
+- name: Restart keepalived
+  ansible.builtin.service:
+    name: keepalived
+    state: restarted
+
+- name: Restart haproxy
+  ansible.builtin.service:
+    name: haproxy
+    state: restarted
+
+- name: Regenerate apiserver cert
+  ansible.builtin.shell: |
+    set -euo pipefail
+    mkdir -p ~/crt-backups
+    mv /etc/kubernetes/pki/apiserver.{crt,key} ~/crt-backups || true
+    kubeadm init phase certs apiserver --config {{ kubeadm_config_path }}
+    rm -rf ~/crt-backups
+  args:
+    executable: /bin/bash
+
+- name: Restart kube-apiserver
+  ansible.builtin.shell: |
+    set -euo pipefail
+    kubectl delete pod -n kube-system -l component=kube-apiserver --ignore-not-found=true
+  args:
+    executable: /bin/bash
