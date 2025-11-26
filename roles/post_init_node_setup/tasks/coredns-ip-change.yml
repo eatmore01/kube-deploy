@@ -1,31 +1,41 @@
 ---
-- name: Read kubelet config YAML
-  ansible.builtin.slurp:
-    src: "{{ kubelet_config_path }}"
-  register: kubelet_cfg_raw
-
-- name: Build updated kubelet config dict
-  ansible.builtin.set_fact:
-    kubelet_cfg_dict: >-
-      {{
-        (kubelet_cfg_raw.content | b64decode | from_yaml)
-          | combine(
-              {
-                'clusterDNS':
-                  (
-                    [ nodelocaldns_local_ip ]
-                  )
-              },
-              recursive=True
-            )
-      }}
-
-- name: Write updated kubelet config if changed
+- name: Write change-coredns-ip script
   ansible.builtin.copy:
-    content: "{{ kubelet_cfg_dict | to_nice_yaml(indent=2) | indent(2) }}"
-    dest: "{{ kubelet_config_path }}"
+    dest: /root/change-coredns-ip.sh
     owner: root
-    group: root
-    mode: '0644'
-    backup: true
-  notify: Restart kubelet
+    mode: "0700"
+    content: |
+      #!/bin/bash
+
+      SOURCE_IP="{{ coredns_ip }}"
+      FINAL_IP="{{ nodelocaldns_local_ip }}"
+      FILE="{{ kubelet_config_path }}"
+      BACKUP_FILE="${FILE}.bak"
+
+      cp "$FILE" "$BACKUP_FILE"
+      if [ $? -ne 0 ]; then
+        echo "Error: Failed to create backup file $BACKUP_FILE"
+        exit 1
+      fi
+
+      sed -i "s/${SOURCE_IP//./\\.}/${FINAL_IP}/g" "$FILE"
+      if [ $? -ne 0 ]; then
+        echo "Error: Replacement failed. Restoring from backup."
+        cp "$BACKUP_FILE" "$FILE"
+        exit 1
+      fi
+
+      echo "In $FILE replaced IP $SOURCE_IP to $FINAL_IP"
+
+      rm "$BACKUP_FILE"
+
+- name: change-coredns-ip
+  ansible.builtin.shell: /root/change-coredns-ip.sh
+  register: change_ip_result
+  failed_when: change_ip_result.rc != 0
+
+- name: Restart kubelet
+  ansible.builtin.systemd_service:
+    name: kubelet
+    state: restarted
+    daemon_reload: true
