@@ -40,7 +40,7 @@ apiServer:
   - "kubernetes.default"
   - "kubernetes.default.svc"
   - "kubernetes.default.svc.{{ cluster_domain }}"
-  - "10.233.0.1"
+  - "{{ kubernetes_service_ip }}"
   - "localhost"
   - "127.0.0.1"
   - "::1"
@@ -61,7 +61,7 @@ staticPodPath: "{{ kubelet_static_pod_path }}"
 maxPods: {{ kubelet_max_pods }}
 clusterDomain: "{{ cluster_domain }}"
 clusterDNS:
-  - 10.233.0.10
+  - "{{ coredns_ip }}"
 {% if system_reserved is defined and system_reserved %}
 systemReserved:
   {{ system_reserved | to_nice_yaml(indent=2) | indent(2) }}

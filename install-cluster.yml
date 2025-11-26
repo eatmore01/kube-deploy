@@ -28,8 +28,9 @@
   roles:
   - workers
 
-# change coredns ip to nodelocalcache dns
-- name: Post cluster-init node setup
-  hosts: kube_cluster
-  roles:
-  - post_init_node_setup
+# change coredns ip to nodelocalcache dns for kubelet
+# in some cases didnt format correct, for save change manual
+# - name: Post cluster-init node setup
+#   hosts: kube_cluster
+#   roles:
+#   - post_init_node_setup
