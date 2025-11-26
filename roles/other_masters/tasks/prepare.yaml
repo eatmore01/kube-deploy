@@ -24,7 +24,6 @@
   run_once: true
   delegate_to: "{{ groups['kube_masters'][0] }}"
 
-
 # save needed facts for join to first master
 # and sooner read it from first master node 
 - name: Save join info as facts on master

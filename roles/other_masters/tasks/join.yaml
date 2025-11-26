@@ -6,8 +6,7 @@
 
 - name: Show join debug print
   ansible.builtin.debug:
-    msg:  "kubeadm join {{  hostvars[groups['kube_masters'][0]].join_path }} --token {{  hostvars[groups['kube_masters'][0]].join_token }} --discovery-token-ca-cert-hash sha256:{{  hostvars[groups['kube_masters'][0]].discovery_token_ca_cert_hash }} --control-plane --certificate-key {{  hostvars[groups['kube_masters'][0]].certificate_key }}"
-
+    msg: "kubeadm join {{  hostvars[groups['kube_masters'][0]].join_path }} --token {{  hostvars[groups['kube_masters'][0]].join_token }} --discovery-token-ca-cert-hash sha256:{{  hostvars[groups['kube_masters'][0]].discovery_token_ca_cert_hash }} --control-plane --certificate-key {{  hostvars[groups['kube_masters'][0]].certificate_key }}"
 
 - name: Join control nodes
   when: not kubeadm_ca.stat.exists
