@@ -22,16 +22,17 @@ venv/bin/ansible-galaxy collection install ansible.posix
 
 ### Install
 
+
 ```bash
-ansible-playbook install-cluster.yaml -b --user=<user> --ask-become-pass
-# ansible-playbook install-cluster.yaml -b --user=root
+ansible-playbook install-cluster.yml -i inventory/example.hosts.ini -b --user=<user> --ask-become-pass
 ```
 
 ### HA
 
 ```bash
-ansible-playbook setup-ha-kubeapi-server.yaml -b --user=<user> --ask-become-pass
+ansible-playbook setup-ha-kubeapi-server.yaml -i inventory/example.hosts.ini -b --user=<user> --ask-become-pass
 ```
+
 
 ## Works
 - Install single master cluster
