@@ -1,4 +1,6 @@
-# Ansible playbook for deploy k8s cluster
+# Ansible playbook for deploy vanila k8s cluster on debian based distributive
+
+![top_history_mistake](./image.png)
 
 - kube 1.34 etc version
 - HA cluster
