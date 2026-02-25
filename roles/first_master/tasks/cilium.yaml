@@ -35,11 +35,39 @@
       autoDirectNodeRoutes: true
       routingMode: native
       ipv4NativeRoutingCIDR: "{{ pod_network_cidr }}"
+      prometheus:
+        enabled: true
+      operator:
+        prometheus:
+          enabled: true
+          serviceMonitor:
+            enabled: false
       hubble:
+        enabled: "{{ hubble_enable | bool }}"
         relay:
           enabled: "{{ hubble_enable | bool }}"
+          prometheus:
+            enabled: true
         ui:
           enabled: "{{ hubble_enable | bool }}"
+        metrics:
+          enabled:
+          - dns
+          - drop
+          - tcp:rtt
+          - tcp
+          - flow
+          - port-distribution
+          - icmp
+          - "httpV2:exemplar=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction"
+          enableOpenMetrics: true
+          port: 9965
+          serviceMonitor:
+            enabled: false
+      envoy:
+        enabled: true
+        serviceMonitor:
+          enabled: false
 
 - name: Wait for Cilium pods to be Ready
   ansible.builtin.command:
