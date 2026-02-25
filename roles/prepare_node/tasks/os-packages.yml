@@ -1,4 +1,3 @@
----
 - name: Ensure timesyncd absent when using ntp
   when: ansible_facts['os_family'] == "Debian"
   ansible.builtin.apt:
@@ -25,3 +24,4 @@
     - ipvsadm
     - python3-yaml
     state: present
+    update_cache: true

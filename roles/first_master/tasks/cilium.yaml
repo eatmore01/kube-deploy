@@ -1,0 +1,77 @@
+
+- name: Resolve API server host for Cilium
+  ansible.builtin.set_fact:
+    _cilium_api_host: "{{ hostvars[groups['kube_masters'][0]]['ansible_host'] }}"
+    _cilium_api_port: 6443
+
+- name: Debug Cilium API endpoint
+  ansible.builtin.debug:
+    msg: "Cilium → API: {{ _cilium_api_host }}:{{ _cilium_api_port }}"
+  when: debug_enable | bool
+
+- name: Add Cilium Helm repository
+  kubernetes.core.helm_repository:
+    name: cilium
+    repo_url: https://helm.cilium.io/
+    force_update: true
+
+- name: Deploy Cilium via Helm
+  kubernetes.core.helm:
+    name: cilium
+    chart_ref: cilium/cilium
+    release_namespace: kube-system
+    create_namespace: false
+    kubeconfig: "{{ kubectl_config }}"
+    wait: true
+    wait_timeout: "5m0s"
+    values:
+      ipam:
+        mode: kubernetes
+      kubeProxyReplacement: true
+      k8sServiceHost: "{{ _cilium_api_host }}"
+      k8sServicePort: "{{ _cilium_api_port }}"
+      bpf:
+        masquerade: true
+      autoDirectNodeRoutes: true
+      routingMode: native
+      ipv4NativeRoutingCIDR: "{{ pod_network_cidr }}"
+      hubble:
+        relay:
+          enabled: "{{ hubble_enable | bool }}"
+        ui:
+          enabled: "{{ hubble_enable | bool }}"
+
+- name: Wait for Cilium pods to be Ready
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - wait
+    - pod
+    - --all
+    - --for=condition=Ready
+    - --namespace=kube-system
+    - --selector=k8s-app=cilium
+    - --timeout=300s
+  environment:
+    KUBECONFIG: "{{ kubectl_config }}"
+  changed_when: false
+
+- name: Get Cilium status
+  ansible.builtin.command:
+    argv:
+    - kubectl
+    - get
+    - pods
+    - -n
+    - kube-system
+    - -l
+    - k8s-app=cilium
+  environment:
+    KUBECONFIG: "{{ kubectl_config }}"
+  changed_when: false
+  register: cilium_pods
+
+- name: Show Cilium pods status
+  ansible.builtin.debug:
+    var: cilium_pods.stdout_lines
+  when: debug_enable | bool

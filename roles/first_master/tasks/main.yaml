@@ -1,4 +1,3 @@
----
 # 1-st control node
 - name: Check if kubeadm has already run
   ansible.builtin.stat:
@@ -26,30 +25,58 @@
   when: inventory_hostname == groups['kube_masters'][0]
   ansible.builtin.command: kubeadm config images pull
 
+# init master
+- name: Resolve skip-phases flag
+  ansible.builtin.set_fact:
+    _skip_kube_proxy: >-
+      {{ cni == 'cilium' or (cni == 'calico' and enable_ebpf | bool) }}
+  when: inventory_hostname == groups['kube_masters'][0]
+
+- name: Build kubeadm init argv
+  ansible.builtin.set_fact:
+    _kubeadm_init_argv: "{{ _base + ([_skip_flag] if _skip_kube_proxy else []) }}"
+  vars:
+    _base:
+    - kubeadm
+    - init
+    - --config
+    - /etc/kubernetes/kubeadm-config.yaml
+    _skip_flag: "--skip-phases=addon/kube-proxy"
+  when: inventory_hostname == groups['kube_masters'][0]
+
 - name: Init master control node
-  when: enable_ebpf == false and inventory_hostname == groups['kube_masters'][0]
-  ansible.builtin.command: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml
+  ansible.builtin.command:
+    argv: "{{ _kubeadm_init_argv }}"
+    creates: /etc/kubernetes/admin.conf # skip if exist again
+  when: inventory_hostname == groups['kube_masters'][0]
   register: kubeadm_init
 
-- name: Init master control node with eBPF
-  when: enable_ebpf == true and inventory_hostname == groups['kube_masters'][0]
-  shell: kubeadm init --config /etc/kubernetes/kubeadm-config.yaml --skip-phases=addon/kube-proxy
-  register: kubeadm_init
+- name: Debug kubeadm init output
+  ansible.builtin.debug:
+    var: kubeadm_init.stdout_lines
+  when:
+  - debug_enable | bool
+  - kubeadm_init is changed
+  - inventory_hostname == groups['kube_masters'][0]
 
+# after master init setup
 - name: Install Utils
   when: inventory_hostname == groups['kube_masters'][0]
   include_tasks: utils.yaml
 
 - name: CNI
   when: inventory_hostname == groups['kube_masters'][0]
-  ansible.builtin.include_tasks: cni.yml
+  ansible.builtin.include_tasks: cni.yaml
 
 - name: Setup DNS
   when: inventory_hostname == groups['kube_masters'][0]
   ansible.builtin.include_tasks: dns.yaml
 
-- name: Kubelet enable
+
+- name: Enable and start kubelet
   ansible.builtin.service:
     name: kubelet
     state: started
     enabled: true
+  when: inventory_hostname == groups['kube_masters'][0]
+

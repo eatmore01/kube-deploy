@@ -1,4 +1,3 @@
----
 # Add link
 - name: Add directory for config file
   ansible.builtin.file:
@@ -11,3 +10,13 @@
     src: /etc/kubernetes/admin.conf
     dest: /root/.kube/config
     state: link
+
+
+
+- name: Copy Helm 3.17.1 version last before v4
+  ansible.builtin.copy:
+    src: ./files/helm
+    dest: /usr/local/bin/helm
+    mode: '0755'
+  when: inventory_hostname == groups['kube_masters'][0]
+

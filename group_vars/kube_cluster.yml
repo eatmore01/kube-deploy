@@ -35,9 +35,10 @@ cri_socket: unix:///run/containerd/containerd.sock
 ######
 ###### CNI 
 # - calico
-cni: calico
+# - cilium
+cni: cilium
 ######
-###### calico
+###### CALICO
 # One of: IPIP, VXLAN, IPIPCrossSubnet, VXLANCrossSubnet, None
 # Work only install without eBPF
 encapsulation: "IPIPCrossSubnet" #  IPIPCrossSubnet = user ip in ip only between differente subnets
@@ -45,6 +46,8 @@ encapsulation: "IPIPCrossSubnet" #  IPIPCrossSubnet = user ip in ip only between
 tigera_operator_version: v3.28.1
 enable_ebpf: false
 ######
+###### CILIUM
+hubble_enable: true
 ###### Kubelet configuration
 # https://kubernetes.io/docs/reference/config-api/kubelet-config.v1beta1/
 ## Reserve resources for OS system daemons.

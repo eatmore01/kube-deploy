@@ -1,0 +1,15 @@
+- name: Calico
+  when: cni == 'calico'
+  block:
+  - name: Install Calico
+    when: not enable_ebpf | bool
+    ansible.builtin.include_tasks: calico.yaml
+
+  - name: Install Calico with BPF
+    when: enable_ebpf | bool
+    ansible.builtin.include_tasks: calico-bpf.yaml
+
+- name: Cilium
+  when: cni == 'cilium'
+  ansible.builtin.include_tasks: cilium.yaml
+

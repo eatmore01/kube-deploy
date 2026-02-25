@@ -2,7 +2,7 @@
 
 ![top_history_mistake](./image.png)
 
-- kube 1.34 etc version
+- kube 1.35 etc version
 - HA cluster
 - calico, etc
 - containerd, etc
@@ -15,6 +15,8 @@ venv/bin/pip3 install "ansible-core<2.17"
 
 venv/bin/ansible-galaxy collection install community.general
 venv/bin/ansible-galaxy collection install ansible.posix
+venv/bin/ansible-galaxy collection install kubernetes.core
+
 ```
 
 ## Params

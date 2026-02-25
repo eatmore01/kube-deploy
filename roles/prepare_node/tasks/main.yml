@@ -4,7 +4,7 @@
 - name: Install OS packages
   ansible.builtin.include_tasks: os-packages.yml
 
-- name: Install NTP server
+- name: Install ntp server
   ansible.builtin.include_tasks: ntp.yml
 
 - name: Disable swap

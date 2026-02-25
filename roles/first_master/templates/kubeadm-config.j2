@@ -46,6 +46,9 @@ apiServer:
   - "::1"
   - "{{ ansible_facts.nodename }}"
   - "{{ ansible_default_ipv4.address | default(ansible_all_ipv4_addresses) }}"
+{% if ansible_internal_ip is defined %}
+  - "{{ ansible_internal_ip }}"
+{% endif %}
 ---
 apiVersion: kubeproxy.config.k8s.io/v1alpha1
 kind: KubeProxyConfiguration
