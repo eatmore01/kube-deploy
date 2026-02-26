@@ -55,7 +55,6 @@
           - dns
           - drop
           - tcp:rtt
-          - tcp
           - flow
           - port-distribution
           - icmp
