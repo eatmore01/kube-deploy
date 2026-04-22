@@ -1,4 +1,3 @@
-
 - name: Resolve API server host for Cilium
   ansible.builtin.set_fact:
     _cilium_api_host: "{{ hostvars[groups['kube_masters'][0]]['ansible_host'] }}"
@@ -52,13 +51,13 @@
           enabled: "{{ hubble_enable | bool }}"
         metrics:
           enabled:
-          - dns
-          - drop
-          - tcp:rtt
-          - flow
-          - port-distribution
-          - icmp
-          - "httpV2:exemplar=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction"
+          - "dns:labelsContext=source_namespace,destination_namespace"
+          - "drop:labelsContext=source_namespace,destination_namespace,traffic_direction"
+          - "tcp:labelsContext=source_namespace,destination_namespace,traffic_direction"
+          - "flow:labelsContext=source_namespace,destination_namespace;sourceContext=workload-name|reserved-identity|pod;destinationContext=workload-name|reserved-identity|pod"
+          - "port-distribution:labelsContext=source_namespace,destination_namespace"
+          - "icmp:labelsContext=source_namespace,destination_namespace"
+          - "httpV2:exemplars=true;labelsContext=source_ip,source_namespace,source_workload,destination_ip,destination_namespace,destination_workload,traffic_direction;sourceContext=workload-name|reserved-identity|pod;destinationContext=workload-name|reserved-identity|pod"
           enableOpenMetrics: true
           port: 9965
           serviceMonitor:
