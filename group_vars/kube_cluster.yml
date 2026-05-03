@@ -33,7 +33,7 @@ cri_socket: unix:///run/containerd/containerd.sock
 # crio
 # cri_socket: unix:///var/run/crio/crio.sock
 ######
-###### CNI 
+###### CNI
 # - calico
 # - cilium
 cni: cilium

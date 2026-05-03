@@ -19,41 +19,50 @@
     state: absent
   loop: "{{ kube_repos.files }}"
 
-- name: Remove possible main-list k8s repo
+- name: Remove old k8s repo from main sources.list if present
   ansible.builtin.lineinfile:
     path: /etc/apt/sources.list
     regexp: '.*kubernetes.*'
     state: absent
 
-- name: Delete k8s repo key
+- name: Clean up old k8s keys from trusted.gpg.d (deprecated location)
   ansible.builtin.file:
-    path: /etc/apt/trusted.gpg.d/k8s.gpg
+    path: "{{ item }}"
+    state: absent
+  loop:
+  - /etc/apt/trusted.gpg.d/k8s.gpg
+  - /etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg
+
+
+- name: Download Kubernetes GPG key
+  ansible.builtin.get_url:
+    url: "https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/Release.key"
+    dest: /tmp/kubernetes-release.key
+    mode: '0644'
+
+- name: Convert GPG key to binary format and store in keyrings
+  ansible.builtin.shell: |
+    gpg --dearmor < /tmp/kubernetes-release.key > /usr/share/keyrings/kubernetes-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/kubernetes-archive-keyring.gpg
+
+- name: Remove temporary key file
+  ansible.builtin.file:
+    path: /tmp/kubernetes-release.key
     state: absent
 
-- name: Update apt cache
-  ansible.builtin.apt:
-    update_cache: yes
-
-- name: K8s repository for Ubuntu|Debian [Key]
-  when: ansible_facts['os_family'] == "Debian"
-  ansible.builtin.apt_key:
-    url: "https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/Release.key"
-    # url: "https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/Release.key"
-    state: present
-    keyring: /etc/apt/trusted.gpg.d/k8s.gpg
-
-- name: K8s repository for Ubuntu|Debian
-  when: ansible_facts['os_family'] == "Debian"
+- name: Add Kubernetes repository
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/etc/apt/trusted.gpg.d/k8s.gpg] https://prod-cdn.packages.k8s.io/repositories/isv:/kubernetes:/core:/stable:/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/ /"
-    # repo: "deb [signed-by=/etc/apt/trusted.gpg.d/k8s.gpg] https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+.[0-9]+') }}/deb/ /"
+    repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/ /"
     state: present
     filename: kubernetes
+    update_cache: true
 
-- name: Install k8s packages
+- name: Install Kubernetes packages
   ansible.builtin.apt:
     pkg:
-    - kubectl
     - kubelet
     - kubeadm
+    - kubectl
     state: present
+    allow_change_held_packages: true

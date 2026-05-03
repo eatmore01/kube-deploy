@@ -4,8 +4,8 @@
 - name: Install OS packages
   ansible.builtin.include_tasks: os-packages.yml
 
-- name: Install ntp server
-  ansible.builtin.include_tasks: ntp.yml
+- name: Install chrony ( time ) server
+  ansible.builtin.include_tasks: chrony.yml
 
 - name: Disable swap
   ansible.builtin.include_tasks: swap-setup.yml
