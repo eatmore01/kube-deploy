@@ -1,5 +1,6 @@
----
 - name: Upgrade cluster
   hosts: kube_cluster
+  serial: 1
   roles:
   - upgrade_cluster
+

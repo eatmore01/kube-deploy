@@ -1,0 +1,60 @@
+- name: Check if new repo file exists
+  stat:
+    path: /etc/apt/sources.list.d/kubernetes.list
+  register: k8s_repo_file
+
+- name: Remove old k8s apt repos and keys (Cleanup)
+  block:
+  - name: Find old repo files
+    find:
+      paths: /etc/apt/sources.list.d
+      patterns:
+      - '*kubernetes*'
+      - '*kube*'
+      file_type: file
+    register: old_repos
+
+  - name: Remove old repo files
+    file:
+      path: "{{ item.path }}"
+      state: absent
+    loop: "{{ old_repos.files }}"
+
+  - name: Remove old GPG keys
+    apt_key:
+      keyring: /etc/apt/trusted.gpg.d/kubernetes-archive-keyring.gpg
+      state: absent
+    failed_when: false
+  when: not k8s_repo_file.stat.exists
+
+- name: Download GPG key
+  get_url:
+    # url: "https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/Release.key"
+    url: "https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/Release.key"
+    dest: /tmp/kubernetes-release.key
+    mode: '0644'
+
+- name: Dearmor GPG key
+  shell: gpg --dearmor < /tmp/kubernetes-release.key > /usr/share/keyrings/kubernetes-archive-keyring.gpg
+  args:
+    creates: /usr/share/keyrings/kubernetes-archive-keyring.gpg
+
+- name: Add repository
+  apt_repository:
+    # repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/ /"
+    repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/ /"
+    state: present
+    filename: kubernetes
+    update_cache: true
+
+- name: Unhold kubeadm for upgrade
+  dpkg_selections:
+    name: kubeadm
+    selection: install
+
+- name: Upgrade kubeadm package
+  apt:
+    name: "kubeadm={{ full_kube_version_for_upgrade }}*"
+    state: present
+    allow_change_held_packages: true
+

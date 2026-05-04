@@ -1,38 +1,74 @@
-- name: Get current version of 1-st master
-  shell:
-    cmd: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
-  register: version_current_1st_master
+- name: Get current version
+  shell: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
+  register: version_current
+  changed_when: false
 
-- name: Version check. 
-  when: version_current_1st_master.stdout is regex(".*" ~ kube_version)
+- name: Check if upgrade is needed and skip if matches
   block:
-    - name: Nothing todo
-      debug: 
-        msg: "Current cluster version {{ version_current_1st_master.stdout }} equal a new version in variables {{ kube_version }}"
+  - name: Show message
+    debug:
+      msg: "Node {{ ansible_fqdn }} is already on version {{ kube_version }}"
 
-    - name: Stop upgrade 1-st control
-      meta: end_host
+  - name: Stop execution for this host
+    meta: end_host
+  when: kube_version | string in version_current.stdout
 
+# - name: Backup etcd data
+#   shell: |
+#     ETCDCTL_API=3 etcdctl \
+#     --endpoints=https://127.0.0.1:2379 \
+#     --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+#     --cert=/etc/kubernetes/pki/etcd/server.crt \
+#     --key=/etc/kubernetes/pki/etcd/server.key \
+#     snapshot save /var/lib/etcd-backup/backup-{{ ansible_date_time.iso8601_basic_short }}.db
+#   environment:
+#     ETCDCTL_API: 3
+#   register: etcd_backup
 
+- name: Run kubeadm upgrade plan
+  command: kubeadm upgrade plan v{{ kube_version }}
+  register: upgrade_plan
 
-- name: Drain node
-  shell: 
-    cmd: kubectl drain {{ ansible_fqdn }} --ignore-daemonsets --delete-emptydir-data
+- name: Apply kubeadm upgrade
+  command: "kubeadm upgrade apply v{{ full_kube_version_for_upgrade }} -y"
+  register: upgrade_apply
+  async: 600
+  poll: 10
 
-# - name: Sleep for 180 seconds
-#   wait_for:
-#     timeout: 60
+- name: Show upgrade result
+  debug:
+    var: upgrade_apply.stdout_lines
 
-- name: Upgrade master node
-  shell: 
-    cmd: "kubeadm upgrade apply v{{ kube_version }} -y"
+- name: Unhold packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: install
+  loop:
+  - kubelet
+  - kubectl
+
+- name: Upgrade kubelet and kubectl
+  apt:
+    name:
+    - "kubelet={{ full_kube_version_for_upgrade }}*"
+    - "kubectl={{ full_kube_version_for_upgrade }}*"
+    state: present
+    allow_change_held_packages: yes
+
+- name: Run kubeadm upgrade node
+  command: kubeadm upgrade node
 
 - name: Restart kubelet
   systemd:
+    name: kubelet
     state: restarted
     daemon_reload: yes
-    name: kubelet
 
-- name: Uncordon master node
-  shell: 
-    cmd: "kubectl uncordon {{ ansible_fqdn }}"
+- name: Hold packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+  - kubelet
+  - kubectl
+  - kubeadm

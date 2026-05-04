@@ -1,4 +1,6 @@
----
+- name: Upgrade kubeadm, on each node
+  ansible.builtin.include_tasks: upgrade-kubeadm.yml
+
 - name: Upgrade 1st master
   when: inventory_hostname == groups['kube_masters'][0]
   ansible.builtin.include_tasks: upgrade-1st-master.yaml

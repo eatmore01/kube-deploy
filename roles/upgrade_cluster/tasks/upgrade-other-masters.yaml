@@ -1,34 +1,43 @@
----
-- name: Get current version
-  shell:
-    cmd: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
-  register: version_current
+- name: Cordon master node (Mark unschedulable)
+  command: "kubectl cordon {{ ansible_fqdn }}"
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+  failed_when: false
 
-- name: Version check. 
-  when: version_current_1st_master.stdout is regex(".*" ~ kube_version)
-  block:
-    - name: Nothing todo
-      debug: 
-        msg: "Current cluster version {{ version_current_1st_master.stdout }} equal a new version in variables {{ kube_version }}"
+- name: Unhold packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: install
+  loop:
+  - kubelet
+  - kubectl
 
-    - name: Stop upgrade 1-st control
-      meta: end_host
+- name: Upgrade kubelet and kubectl
+  apt:
+    name:
+    - "kubelet={{ full_kube_version_for_upgrade }}*"
+    - "kubectl={{ full_kube_version_for_upgrade }}*"
+    state: present
+    allow_change_held_packages: yes
 
-
-- name: Drain node
-  shell: 
-    cmd: kubectl drain {{ ansible_fqdn }} --ignore-daemonsets
-
-- name: Upgrade control node
-  shell: 
-    cmd: "kubeadm upgrade node"
+- name: Run kubeadm upgrade node
+  command: kubeadm upgrade node
 
 - name: Restart kubelet
   systemd:
+    name: kubelet
     state: restarted
     daemon_reload: yes
-    name: kubelet
 
-- name: Uncordon control node
-  shell: 
-    cmd: "kubectl uncordon {{ ansible_fqdn }}" 
+- name: Hold packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+  - kubelet
+  - kubectl
+  - kubeadm
+
+- name: Uncordon master node (Mark schedulable)
+  command: "kubectl uncordon {{ ansible_fqdn }}"
+  delegate_to: "{{ groups['kube_masters'][0] }}"
+

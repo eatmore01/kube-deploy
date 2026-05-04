@@ -36,7 +36,8 @@
 
 - name: Download Kubernetes GPG key
   ansible.builtin.get_url:
-    url: "https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/Release.key"
+    # url: "https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/Release.key"
+    url: "https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/Release.key"
     dest: /tmp/kubernetes-release.key
     mode: '0644'
 
@@ -53,7 +54,8 @@
 
 - name: Add Kubernetes repository
   ansible.builtin.apt_repository:
-    repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/ /"
+    # repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/ /"
+    repo: "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://mirror.yandex.ru/mirrors/pkgs.k8s.io/core/stable/v{{ kube_version | regex_search('[0-9]+\\.[0-9]+') }}/deb/ /"
     state: present
     filename: kubernetes
     update_cache: true

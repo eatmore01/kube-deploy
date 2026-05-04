@@ -1,35 +1,56 @@
-- name: Get current version
+- name: Drain node (Shell fallback)
   delegate_to: "{{ groups['kube_masters'][0] }}"
-  shell:
-    cmd: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
-  register: version_current
+  shell: "kubectl drain {{ ansible_fqdn }} --ignore-daemonsets --delete-emptydir-data"
+  register: drain_result
+  changed_when: "'drained' in drain_result.stdout"
 
-- name: Version check. 
-  when: version_current_1st_master.stdout is regex(".*" ~ kube_version)
-  block:
-    - name: Nothing todo
-      debug: 
-        msg: "Current cluster version {{ version_current_1st_master.stdout }} equal a new version in variables {{ kube_version }}"
+# - name: Drain node
+#   kubernetes.core.k8s_drain:
+#     name: "{{ ansible_fqdn }}"
+#     delete_emptydir_data: true
+#     disable_eviction: false
+#     state: drain
+#   delegate_to: "{{ groups['kube_masters'][0] }}"
 
-    - name: Stop upgrade 1-st control
-      meta: end_host
+- name: Unhold packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: install
+  loop:
+  - kubelet
+  - kubectl
 
-- name: Drain worker node
-  delegate_to: "{{ groups['kube_masters'][0] }}"
-  shell:
-    cmd: kubectl drain {{ ansible_fqdn }} --ignore-daemonsets --delete-emptydir-data
-
-- name: Upgrade worker node
-  shell:
-    cmd: "kubeadm upgrade node"
+- name: Upgrade kubelet and kubectl
+  apt:
+    name:
+    - "kubelet={{ full_kube_version_for_upgrade }}*"
+    - "kubectl={{ full_kube_version_for_upgrade }}*"
+    state: present
+    allow_change_held_packages: yes
 
 - name: Restart kubelet
   systemd:
+    name: kubelet
     state: restarted
     daemon_reload: yes
-    name: kubelet
 
-- name: Uncordon worker node
+- name: Hold packages
+  dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+  - kubelet
+  - kubectl
+  - kubeadm
+
+- name: Uncordon node
   delegate_to: "{{ groups['kube_masters'][0] }}"
-  shell:
-    cmd: "kubectl uncordon {{ ansible_fqdn }}"
+  shell: "kubectl uncordon {{ ansible_fqdn }}"
+  register: uncordon_result
+  changed_when: "'uncordoned' in uncordon_result.stdout"
+
+# - name: Uncordon node (Module fallback)
+#   kubernetes.core.k8s_drain:
+#     name: "{{ ansible_fqdn }}"
+#     state: uncordon
+#   delegate_to: "{{ groups['kube_masters'][0] }}"
