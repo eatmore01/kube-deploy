@@ -1,17 +1,22 @@
-- name: Get current version
+- name: Get current kubelet version
   shell: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
   register: version_current
   changed_when: false
 
-- name: Check if upgrade is needed and skip if matches
+- name: Normalize versions for safe comparison
+  set_fact:
+    current_ver_clean: "{{ version_current.stdout | regex_replace('^v', '') }}"
+    target_ver_clean: "{{ full_kube_version_for_upgrade | regex_replace('^v', '') }}"
+
+- name: Check if upgrade is needed
   block:
-  - name: Show message
+  - name: Show skip message
     debug:
-      msg: "Node {{ ansible_fqdn }} is already on version {{ kube_version }}"
+      msg: "Node {{ ansible_fqdn }} is already on version {{ current_ver_clean }}. Skipping upgrade."
 
   - name: Stop execution for this host
     meta: end_host
-  when: kube_version | string in version_current.stdout
+  when: current_ver_clean == target_ver_clean
 
 # - name: Backup etcd data
 #   shell: |

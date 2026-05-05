@@ -1,3 +1,23 @@
+- name: Get current kubelet version
+  shell: "kubectl get nodes {{ ansible_fqdn }} -o=jsonpath='{.status.nodeInfo.kubeletVersion}'"
+  register: version_current
+  changed_when: false
+
+- name: Normalize versions for safe comparison
+  set_fact:
+    current_ver_clean: "{{ version_current.stdout | regex_replace('^v', '') }}"
+    target_ver_clean: "{{ full_kube_version_for_upgrade | regex_replace('^v', '') }}"
+
+- name: Check if upgrade is needed
+  block:
+  - name: Show skip message
+    debug:
+      msg: "Node {{ ansible_fqdn }} is already on version {{ current_ver_clean }}. Skipping upgrade."
+
+  - name: Stop execution for this host
+    meta: end_host
+  when: current_ver_clean == target_ver_clean
+
 - name: Cordon master node (Mark unschedulable)
   command: "kubectl cordon {{ ansible_fqdn }}"
   delegate_to: "{{ groups['kube_masters'][0] }}"
@@ -40,4 +60,3 @@
 - name: Uncordon master node (Mark schedulable)
   command: "kubectl uncordon {{ ansible_fqdn }}"
   delegate_to: "{{ groups['kube_masters'][0] }}"
-

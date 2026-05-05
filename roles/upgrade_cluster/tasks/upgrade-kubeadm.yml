@@ -57,4 +57,3 @@
     name: "kubeadm={{ full_kube_version_for_upgrade }}*"
     state: present
     allow_change_held_packages: true
-
